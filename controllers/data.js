@@ -1,4 +1,5 @@
 let users = [];
-let notifications = [];
 
-module.exports = { users, notifications };
+let messages = [];
+
+module.exports = { users, messages };

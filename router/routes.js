@@ -1,20 +1,27 @@
 const express = require("express");
 const router = express.Router();
+const verifyToken = require("../middleware/auth");
 
 const {
     registerUser,
     loginUser,
-    pokeUser,
-    getNotifications,
+    sendMessage,
     getUsers,
-    deleteUser
+    updateUserColor
 } = require("../controllers/mainController");
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.post("/poke", pokeUser);
-router.post("/getnotifications", getNotifications);
-router.get("/users", getUsers);
-router.post("/deleteUser", deleteUser);
+const {
+    validateRegister,
+    validateLogin
+} = require("../middleware/validators");
+
+
+router.post("/register", validateRegister, registerUser);
+router.post("/login", validateLogin, loginUser);
+router.post("/sendmessage", sendMessage);
+router.get("/users", verifyToken, getUsers);
+router.post("/updateColor", verifyToken, updateUserColor);
+
+
 
 module.exports = router;

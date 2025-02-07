@@ -1,106 +1,98 @@
-const { uid } = require("uid");
-const { users, notifications } = require("./data");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const { users, messages } = require("./data");
+
+const sendMessage = (req, res) => {
+    const { fromUser, toUser, message } = req.body;
+
+    const sender = users.find(user => user.username === fromUser);
+    const receiver = users.find(user => user.username === toUser);
+
+    if (!sender || !receiver) {
+        return res.send({ error: true, message: "User not found" });
+    }
+
+    messages.push({ fromUser, toUser, message, date: new Date().toISOString() });
+    res.send({ error: false, message: `Message sent to ${toUser}` });
+};
 
 const registerUser = (req, res) => {
-    const { username, password } = req.body;
+    const { username, passwordOne, email, color } = req.body;
 
-    const userExists = users.find(user => user.username === username);
-    if (userExists) {
+    if (users.find(user => user.username === username)) {
         return res.send({ error: true, message: "Username already exists" });
     }
 
-    const newUser = {
-        username,
-        password,
-        secretKey: uid(),
-    };
+    bcrypt.genSalt(5, (err, salt) => {
+        if (err) return res.send({ error: true, message: "Error generating salt" });
 
-    users.push(newUser);
-    res.send({ error: false, message: "User registered successfully" });
+        bcrypt.hash(passwordOne, salt, (err, hash) => {
+            if (err) return res.send({ error: true, message: "Error hashing password" });
+
+            users.push({ username,
+                email,
+                passwordHash: hash,
+                color: color || "#ADD8E6"
+            });
+            res.send({ error: false, message: "User registered successfully" });
+        });
+    });
 };
-
 const loginUser = (req, res) => {
     const { username, password } = req.body;
+    const user = users.find(user => user.username === username);
+
+    if (!user) {
+        return res.send({ error: true, message: "Invalid username or password" });
+    }
+
+    bcrypt.compare(password, user.passwordHash, (err, result) => {
+        if (err || !result) {
+            return res.send({ error: true, message: "Incorrect password" });
+        }
+
+        const token = jwt.sign({ username: user.username, color: user.color }, process.env.SECRET_KEY, { expiresIn: "1h" });
+
+        console.log("✅ Generated JWT Token:", token);
+
+        // ✅ If the users array is empty, add the logged-in user
+        if (!users.some(u => u.username === username)) {
+            users.push(user);
+        }
+
+        res.send({ error: false, message: "Login successful", token, user });
+    });
+};
+
+const updateUserColor = (req, res) => {
+    const { color } = req.body;
+    const username = req.user.username;
 
     const user = users.find(user => user.username === username);
     if (!user) {
-        return res.send({ error: true, message: "Invalid username" });
+        return res.send({ error: true, message: "User not found" });
     }
 
-    if (user.password !== password) {
-        return res.send({ error: true, message: "Incorrect password" });
-    }
+    user.color = color;
 
-    res.send({ error: false, message: "Login successful", user });
+    const token = jwt.sign({ username: user.username, color: user.color }, process.env.SECRET_KEY, { expiresIn: "1h" });
+
+    console.log("✅ User color updated:", user);
+
+    res.send({ error: false, message: "Color updated successfully", token });
 };
 
-const pokeUser = (req, res) => {
-    const { toUser, secretKey } = req.body;
 
-    const sender = users.find(user => user.secretKey === secretKey);
-    if (!sender) {
-        return res.send({ error: true, message: "Invalid secretKey" });
-    }
-
-    const targetUser = users.find(user => user.username === toUser);
-    if (!targetUser) {
-        return res.send({ error: true, message: "User to poke not found" });
-    }
-
-    notifications.push({
-        toUser,
-        fromUser: sender.username,
-        date: new Date().toISOString(),
-    });
-
-    res.send({ error: false, message: `${toUser} has been poked!` });
-};
-
-const getNotifications = (req, res) => {
-    const { secretKey } = req.body;
-
-    const user = users.find(user => user.secretKey === secretKey);
-    if (!user) {
-        return res.send({ error: true, message: "Invalid secretKey" });
-    }
-
-    const userNotifications = notifications.filter(n => n.toUser === user.username);
-
-    res.send({ error: false, notifications: userNotifications });
-};
 
 const getUsers = (req, res) => {
+    if (users.length === 0) {
+        console.log("🔹 Users list is empty, refreshing...");
+        users.push(req.user);  // ✅ Re-add logged-in user
+    }
+
+    console.log("🔹 Fetching Users:", users);  // ✅ Debugging log
     res.send(users);
 };
 
-const deleteUser = (req, res) => {
-    const { secretKey, password } = req.body;
 
-    const user = users.find(user => user.secretKey === secretKey);
-    if (!user) {
-        return res.send({ error: true, message: "Invalid secretKey" });
-    }
-
-    if (user.password !== password) {
-        return res.send({ error: true, message: "Incorrect password" });
-    }
-
-    const updatedUsers = users.filter(u => u.secretKey !== secretKey);
-    users.length = 0;
-    users.push(...updatedUsers);
-
-    const updatedNotifications = notifications.filter(n => n.toUser !== user.username && n.fromUser !== user.username);
-    notifications.length = 0;
-    notifications.push(...updatedNotifications);
-
-    res.send({ error: false, message: "User deleted successfully" });
-};
-
-module.exports = {
-    registerUser,
-    loginUser,
-    pokeUser,
-    getNotifications,
-    getUsers,
-    deleteUser,
-};
+module.exports = { registerUser, loginUser, updateUserColor, sendMessage, getUsers };
