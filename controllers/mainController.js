@@ -1,98 +1,55 @@
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
-const { users, messages } = require("./data");
+const bcrypt = require('bcrypt');
+const jwt = require("jsonwebtoken")
+const userSchema = require("../schemas/userSchema");
 
-const sendMessage = (req, res) => {
-    const { fromUser, toUser, message } = req.body;
+module.exports = {
+        register: async (req, res) => {
+            const { username, password1, password2 } = req.body;
 
-    const sender = users.find(user => user.username === fromUser);
-    const receiver = users.find(user => user.username === toUser);
+            if (password1 !== password2) {
+                return res.send({ message: "Passwords do not match" });
+            }
 
-    if (!sender || !receiver) {
-        return res.send({ error: true, message: "User not found" });
-    }
+            const userExists = await userSchema.findOne({ username });
+            if (userExists) {
+                return res.send({ message: "User already exists" });
+            }
 
-    messages.push({ fromUser, toUser, message, date: new Date().toISOString() });
-    res.send({ error: false, message: `Message sent to ${toUser}` });
-};
+            const salt = await bcrypt.genSalt(5);
+            const hash = await bcrypt.hash(password1, salt);
 
-const registerUser = (req, res) => {
-    const { username, passwordOne, email, color } = req.body;
+            const user = {
+                username,
+                password: hash
+            };
 
-    if (users.find(user => user.username === username)) {
-        return res.send({ error: true, message: "Username already exists" });
-    }
+            const newUser = new userSchema(user);
+            await newUser.save();
+            const savedUser = await newUser.save();
+            console.log("✅ New user registered:", savedUser);
+            res.send({ ok: "ok" });
+        },
 
-    bcrypt.genSalt(5, (err, salt) => {
-        if (err) return res.send({ error: true, message: "Error generating salt" });
 
-        bcrypt.hash(passwordOne, salt, (err, hash) => {
-            if (err) return res.send({ error: true, message: "Error hashing password" });
+    login: async (req, res) => {
+        const { username, password} = req.body;
 
-            users.push({ username,
-                email,
-                passwordHash: hash,
-                color: color || "#ADD8E6"
-            });
-            res.send({ error: false, message: "User registered successfully" });
-        });
-    });
-};
-const loginUser = (req, res) => {
-    const { username, password } = req.body;
-    const user = users.find(user => user.username === username);
+        const myUser = await userSchema.findOne({ username });
 
-    if (!user) {
-        return res.send({ error: true, message: "Invalid username or password" });
-    }
-
-    bcrypt.compare(password, user.passwordHash, (err, result) => {
-        if (err || !result) {
-            return res.send({ error: true, message: "Incorrect password" });
+        if (!myUser) {
+            return res.send( {error: true, message: "User does not exist" })
         }
 
-        const token = jwt.sign({ username: user.username, color: user.color }, process.env.SECRET_KEY, { expiresIn: "1h" });
+        const passwordMatch = await bcrypt.compare(password, myUser.password)
 
-        console.log("✅ Generated JWT Token:", token);
+            if (!passwordMatch) {
+                return res.send({success: false, message: "Invalid password"});
+            }
 
-        // ✅ If the users array is empty, add the logged-in user
-        if (!users.some(u => u.username === username)) {
-            users.push(user);
-        }
+            const userData = {username: myUser.username};
+            const token = jwt.sign(userData, process.env.SECRET_KEY)
 
-        res.send({ error: false, message: "Login successful", token, user });
-    });
-};
-
-const updateUserColor = (req, res) => {
-    const { color } = req.body;
-    const username = req.user.username;
-
-    const user = users.find(user => user.username === username);
-    if (!user) {
-        return res.send({ error: true, message: "User not found" });
+        return res.send({success: true, token});
     }
 
-    user.color = color;
-
-    const token = jwt.sign({ username: user.username, color: user.color }, process.env.SECRET_KEY, { expiresIn: "1h" });
-
-    console.log("✅ User color updated:", user);
-
-    res.send({ error: false, message: "Color updated successfully", token });
 };
-
-
-
-const getUsers = (req, res) => {
-    if (users.length === 0) {
-        console.log("🔹 Users list is empty, refreshing...");
-        users.push(req.user);  // ✅ Re-add logged-in user
-    }
-
-    console.log("🔹 Fetching Users:", users);  // ✅ Debugging log
-    res.send(users);
-};
-
-
-module.exports = { registerUser, loginUser, updateUserColor, sendMessage, getUsers };

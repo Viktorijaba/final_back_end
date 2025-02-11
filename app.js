@@ -1,18 +1,25 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
-const jwt = require("jsonwebtoken");
+const cors = require("cors")
+const mainRouter = require("./router/routes")
+const express = require("express")
+const mongoose = require("mongoose")
+const app = express()
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+require("dotenv").config()
 
-const mainRouter = require("./router/routes");
+mongoose
+    .connect(process.env.MONGO_KEY)
+    .then(() => {
+        console.log('connected to DB');
+    })
+    .catch((err) => {
+        console.error(err);
+    });
 
-app.use("/", mainRouter);
+app.use(cors())
+app.use(express.json())
 
+app.use("/", mainRouter)
 
-const PORT = 2001;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.listen(2002, () => {
+    console.log('Server runs on port 2002');
+})
