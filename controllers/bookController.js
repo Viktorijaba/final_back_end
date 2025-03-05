@@ -103,20 +103,30 @@ module.exports = {
     },
 
     takeBook: async (req, res) => {
-        const {id} = req.params;
-        const {username} = req.body;
+        const { id } = req.params;
+        const { user } = req.body;
+
         const book = await Book.findById(id);
-        if (!book) return res.status(404).send({message: "Book not found"});
+        if (!book) return res.status(404).send({ message: "Book not found" });
+
+        // 🔹 Check if user is banned
+        const loggedInUser = await User.findById(user._id);
+        if (!loggedInUser) return res.status(404).send({ message: "User not found" });
+
+        if (loggedInUser.banned) {
+            return res.status(403).send({ message: "You are banned and cannot take books" });
+        }
 
         if (book.takenBy) {
             return res.status(400).send({ message: "Book already taken" });
         }
 
-        book.takenBy = username;
+        book.takenBy = loggedInUser.username;
         await book.save();
 
         res.send({ success: true, book });
     },
+
     returnBook: async (req, res) => {
         const { id } = req.params;
 
@@ -140,6 +150,23 @@ module.exports = {
 
         await Book.findByIdAndDelete(id);
         res.send({ success: true, message: "Book deleted" });
-    }
+    },
+    getAllUsers: async (req, res) => {
+        const users = await User.find();
+        res.send(users);
+    },
+
+    banUser: async (req, res) => {
+        const { id } = req.params;
+        await User.findByIdAndUpdate(id, { banned: true });
+        res.send({ success: true, message: "User banned successfully" });
+    },
+
+    unbanUser: async (req, res) => {
+        const { id } = req.params;
+        await User.findByIdAndUpdate(id, { banned: false });
+        res.send({ success: true, message: "User unbanned successfully" });
+    },
+
 };
 

@@ -11,6 +11,9 @@ const {
     returnBook,
     deleteBook,
     getMyBooks,
+    getAllUsers,
+    banUser,
+    unbanUser
 } = require("../controllers/bookController");
 
 
@@ -30,6 +33,10 @@ router.post("/takeBook/:id", userAuth, takeBook);
 router.post("/returnBook/:id", userAuth, returnBook);
 router.delete("/deleteBook/:id", userAuth, deleteBook);
 router.get("/myBooks", userAuth, getMyBooks);
+router.get("/getAllUsers", userAuth, getAllUsers);
+router.post("/banUser/:id", userAuth, banUser);
+router.post("/unbanUser/:id", userAuth, unbanUser);
+
 
 
 module.exports = router
