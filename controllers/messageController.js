@@ -1,67 +1,49 @@
 const Message = require("../schemas/messageSchema");
 
 module.exports = {
+
     sendMessage: async (req, res) => {
-        try {
-            const {sender, receiver, message} = req.body;
+        const from = req.user.username;
+        const { to, content } = req.body;
 
-            if (!sender || !receiver || !message) {
-                return res.status(400).json({success: false, message: "All fields are required"});
-            }
+        const newMessage = new Message({
+            sender: from,
+            receiver: to,
+            message: content
+        });
 
-            const newMessage = new Message({sender, receiver, message});
-            await newMessage.save();
+        await newMessage.save();
 
-            res.status(201).json({success: true, message: newMessage});
-        } catch (err) {
-            res.status(500).json({success: false, error: err.message});
-        }
+        res.send({ success: true, message: "Message sent" });
     },
 
-    getMessages: async (req, res) => {
-        try {
-            const {userId, receiverId} = req.params;
+    getMyMessages: async (req, res) => {
+        const username = req.user.username;
 
-            console.log("📥 Fetching messages between:", userId, "and", receiverId);
+        const myMessages = await Message.find({ receiver: username }).sort({ timestamp: -1 });
 
-            if (!userId || !receiverId) {
-                return res.status(400).json({success: false, message: "Invalid user data"});
-            }
+        const formatted = myMessages.map((msg) => ({
+            id: msg._id,
+            from: msg.sender,
+            to: msg.receiver,
+            content: msg.message,
+            date: msg.timestamp
+        }));
 
-            const messages = await Message.find({
-                $or: [
-                    {sender: userId, receiver: receiverId},
-                    {sender: receiverId, receiver: userId}
-                ]
-            }).sort({timestamp: 1});
-
-            console.log("📤 Found messages:", messages.length);
-
-            res.json({success: true, messages});
-        } catch (err) {
-            console.error("❌ Error in getMessages:", err);
-            res.status(500).json({success: false, error: err.message});
-        }
+        res.send(formatted);
     },
-    getUsers: async (req, res) => {
-        try {
-            const onlineUsers = usersOnline.getUsers(); // 🔹 Get online users from memory
-            console.log("✅ Online Users from `getUsers`:", onlineUsers);
 
-            const users = await User.find({}, { password: 0 }); // 🔹 Fetch all users from DB
+    deleteMessage: async (req, res) => {
+        const { id } = req.params;
+        const username = req.user.username;
 
-            const usersWithOnlineStatus = users.map(user => ({
-                username: user.username,
-                id: user._id,
-                online: onlineUsers.some(onlineUser => onlineUser.username === user.username)
-            }));
+        const message = await Message.findOne({ _id: id });
 
-            console.log("✅ Final Users List Sent to Frontend:", usersWithOnlineStatus);
-            res.json({ success: true, users: usersWithOnlineStatus });
-
-        } catch (err) {
-            console.error("❌ Error fetching users:", err);
-            res.status(500).json({ success: false, error: err.message });
+        if (!message || message.receiver !== username) {
+            return res.send({ success: false, message: "Message not found or not yours" });
         }
+
+        await Message.findByIdAndDelete(id);
+        res.send({ success: true, message: "Message deleted" });
     }
 };

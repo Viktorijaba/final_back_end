@@ -5,23 +5,22 @@ const userSchema = new Schema({
     username: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        minlength: 4,
+        maxlength: 20
     },
     password: {
         type: String,
-        required: true
-    },
+        required: true,
+        minlength: 4,
 
-    admin: {
-        type: Boolean,
-        default: false
     },
-    banned: {
-        type: Boolean,
-        default: false
+    photo: {
+        type: String,
+        default: ""
     }
-
 });
+
 
 const User = mongoose.model("users", userSchema);
 
